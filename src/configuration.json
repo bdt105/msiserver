@@ -1,0 +1,7 @@
+{
+    "common":{
+        "port": 8009,
+        "destinationDirectory": "./toto/",
+        "tempDirectory": "./temp/"
+    }
+}

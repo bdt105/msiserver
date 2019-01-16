@@ -84,11 +84,24 @@ var Main = /** @class */ (function () {
         // Dereference the window object. 
         Main.mainWindow = null;
     };
+    Main.loadConfiguration = function () {
+        var fs = require('fs');
+        if (fs.existsSync(Main.configurationFileName)) {
+            var conf = fs.readFileSync(Main.configurationFileName);
+            var configuration = JSON.parse(conf);
+            if (configuration && configuration.dev) {
+                Main.showdevtool = configuration.dev.showdevtool;
+            }
+        }
+    };
     Main.onReady = function () {
         Main.mainWindow = new Main.BrowserWindow({ width: 800, height: 600 });
         Main.mainWindow.loadFile(path.join(__dirname, "../index.html"));
         // Open the DevTools.
-        Main.mainWindow.webContents.openDevTools();
+        Main.loadConfiguration();
+        if (Main.showdevtool) {
+            Main.mainWindow.webContents.openDevTools();
+        }
         Main.mainWindow.on('closed', Main.onClose);
     };
     Main.main = function (app, browserWindow) {
@@ -101,6 +114,8 @@ var Main = /** @class */ (function () {
         Main.application.on('window-all-closed', Main.onWindowAllClosed);
         Main.application.on('ready', Main.onReady);
     };
+    Main.configurationFileName = "configuration.json";
+    Main.showdevtool = false;
     return Main;
 }());
 exports.Main = Main;

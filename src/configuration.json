@@ -1,6 +1,6 @@
 {
     "common":{
-        "port": 8009,
+        "port": 8080,
         "destinationDirectory": "./toto/",
         "tempDirectory": "./temp/"
     }

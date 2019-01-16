@@ -74,10 +74,13 @@ import { BrowserWindow } from 'electron';
 import * as path from "path";
 
 export class Main {
-	
+
 	static mainWindow: Electron.BrowserWindow;
 	static application: Electron.App;
 	static BrowserWindow: any;
+	static configurationFileName = "configuration.json";
+	static showdevtool = false;
+
 	private static onWindowAllClosed() {
 		if (process.platform !== 'darwin') {
 			Main.application.quit();
@@ -89,12 +92,27 @@ export class Main {
 		Main.mainWindow = null;
 	}
 
+	private static loadConfiguration() {
+		let fs = require('fs');
+
+		if (fs.existsSync(Main.configurationFileName)) {
+			var conf = fs.readFileSync(Main.configurationFileName);
+			let configuration = JSON.parse(conf);
+			if (configuration && configuration.dev) {
+				Main.showdevtool = configuration.dev.showdevtool;
+			}
+		}
+	}
+
 	private static onReady() {
 		Main.mainWindow = new Main.BrowserWindow({ width: 800, height: 600 });
 		Main.mainWindow.loadFile(path.join(__dirname, "../index.html"));
 
 		// Open the DevTools.
-		Main.mainWindow.webContents.openDevTools();
+		Main.loadConfiguration();
+		if (Main.showdevtool) {
+			Main.mainWindow.webContents.openDevTools();
+		}
 		Main.mainWindow.on('closed', Main.onClose);
 	}
 

@@ -1,12 +1,13 @@
 {
 	"name": "electron-quick-start-typescript",
 	"version": "1.0.0",
+	"main": "./dist/app.js",
 	"description": "A minimal Electron application written with Typescript",
 	"scripts": {
 		"build": "tsc",
 		"watch": "tsc -w",
 		"lint": "tslint -c tslint.json -p tsconfig.json",
-		"start": "npm run build && electron ./dist/app.js"
+		"start": "PORT=3006 npm run build && electron ./dist/app.js"
 	},
 	"repository": "https://github.com/electron/electron-quick-start-typescript",
 	"keywords": [

@@ -80,6 +80,7 @@ export class Main {
 	static BrowserWindow: any;
 	static configurationFileName = "configuration.json";
 	static showdevtool = false;
+	static configuration: any;
 
 	private static onWindowAllClosed() {
 		if (process.platform !== 'darwin') {
@@ -97,9 +98,9 @@ export class Main {
 
 		if (fs.existsSync(Main.configurationFileName)) {
 			var conf = fs.readFileSync(Main.configurationFileName);
-			let configuration = JSON.parse(conf);
-			if (configuration && configuration.dev) {
-				Main.showdevtool = configuration.dev.showdevtool;
+			Main.configuration = JSON.parse(conf);
+			if (Main.configuration && Main.configuration.dev) {
+				Main.showdevtool = Main.configuration.dev.showdevtool;
 			}
 		}
 	}
@@ -109,6 +110,7 @@ export class Main {
 		Main.mainWindow.loadFile(path.join(__dirname, "../index.html"));
 
 		// Open the DevTools.
+		// "dev":{"showdevtool":true}
 		Main.loadConfiguration();
 		if (Main.showdevtool) {
 			Main.mainWindow.webContents.openDevTools();
@@ -126,5 +128,6 @@ export class Main {
 		Main.application.on('window-all-closed', Main.onWindowAllClosed);
 		Main.application.on('ready', Main.onReady);
 	}
+
 
 }

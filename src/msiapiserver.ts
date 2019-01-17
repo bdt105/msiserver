@@ -10,8 +10,8 @@ export class MsiApiServer {
     private logs: any;
     private configurationFileName = "configuration.json";
     private lastError: any;
-    private logSize = 30;
     private server: any;
+    private defaultLogSize = 30;
 
     constructor() {
         this.fs = require('fs');
@@ -68,7 +68,7 @@ export class MsiApiServer {
         if (!this.logs) {
             this.logs = [];
         } else {
-            this.logs.splice(this.logSize, this.logs.length);
+            this.logs.splice(this.configuration.common.logSize ? this.configuration.common.logSize : this.defaultLogSize, this.logs.length);
         }
         this.logs.splice(0, 0, date + " " + text);
     }
@@ -87,15 +87,17 @@ export class MsiApiServer {
 
     private initUpload() {
         var multer = require('multer');
-        var upload = multer({ dest: this.configuration.common.tempDirectory });
+        let temp = this.configuration.common.tempDirectory ? this.configuration.common.tempDirectory : "./temp/";
+        var upload = multer({ dest: temp });
 
         this.app.post('/upload', upload.single('file'), (req: any, res: any) => {
             res.setHeader('content-type', 'application/json');
             this.writeLog("Receive file: '" + req.file.originalname + (req.body ? "', from: " + req.body.station + " (" + req.body.user + ")" : ""));
             let dest = this.configuration.common.destinationDirectory;
+            let temp = this.configuration.common.tempDirectory ? this.configuration.common.tempDirectory : "./temp/";
             let check = this.checkConfiguration();
             if (!check) {
-                this.fs.copyFile(this.configuration.common.tempDirectory + req.file.filename, dest + req.file.originalname,
+                this.fs.copyFile(temp + req.file.filename, dest + req.file.originalname,
                     (err: any) => {
                         if (err) {
                             res.status(500);
@@ -103,11 +105,11 @@ export class MsiApiServer {
                             res.send(JSON.stringify({ status: "ERR", error: err }));
                         } else {
                             res.status(200);
-                            this.fs.unlink(this.configuration.common.tempDirectory + req.file.filename, (err1: any) => {
+                            this.fs.unlink(temp + req.file.filename, (err1: any) => {
                                 if (err1) {
                                     this.writeError(JSON.stringify(err1));
                                 } else {
-                                    this.writeLog(this.configuration.common.tempDirectory + req.file.filename + " cleaned successfully");
+                                    this.writeLog(temp + req.file.filename + " cleaned successfully");
                                 }
                             });
                             res.status(200);
@@ -121,13 +123,27 @@ export class MsiApiServer {
         });
     }
 
-    private loadConfiguration() {
+    loadConfiguration() {
         if (this.fs.existsSync(this.configurationFileName)) {
             var conf = this.fs.readFileSync(this.configurationFileName);
             this.configuration = JSON.parse(conf);
         } else {
-            this.writeError("Could not find configuration.json");
+            this.writeError("Could not find the configuration");
         }
+    }
+
+    initConfiguration() {
+        this.configuration = { "common": { "port": 8080, "destinationDirectory": "", "tempDirectory": "./temp/", "logSize": 30 } }
+    }
+
+    saveConfiguration(port: number, destinationDirectory: string, logSize: number) {
+        if (!this.configuration) {
+            this.initConfiguration();
+        }
+        this.configuration.common.port = port;
+        this.configuration.common.logSize = logSize;
+        this.configuration.common.destinationDirectory = destinationDirectory;
+        this.fs.writeFileSync(this.configurationFileName, JSON.stringify(this.configuration));
     }
 
     /*
@@ -167,7 +183,7 @@ export class MsiApiServer {
     checkConfiguration() {
         let mes = null;
         if (!this.configuration) {
-            mes = "No configuration file found";
+            mes = "No configuration set";
         } else {
             if (!this.configuration.common) {
                 mes = "Configuration file mal formed, 'common' section missing";
@@ -183,5 +199,20 @@ export class MsiApiServer {
             }
         }
         return mes;
+    }
+
+    getConfiguration() {
+        return this.configuration;
+    }
+
+
+	getIp(){
+		let ip = require('ip');
+		return ip.address();
+    }   
+    
+    getOs(){
+        let os = require('os');
+        return os;
     }
 }

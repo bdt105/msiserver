@@ -4,7 +4,7 @@ var express = require("express");
 var MsiApiServer = /** @class */ (function () {
     function MsiApiServer() {
         this.configurationFileName = "configuration.json";
-        this.logSize = 30;
+        this.defaultLogSize = 30;
         this.fs = require('fs');
     }
     MsiApiServer.prototype.getLastError = function () {
@@ -56,7 +56,7 @@ var MsiApiServer = /** @class */ (function () {
             this.logs = [];
         }
         else {
-            this.logs.splice(this.logSize, this.logs.length);
+            this.logs.splice(this.configuration.common.logSize ? this.configuration.common.logSize : this.defaultLogSize, this.logs.length);
         }
         this.logs.splice(0, 0, date + " " + text);
     };
@@ -72,14 +72,16 @@ var MsiApiServer = /** @class */ (function () {
     MsiApiServer.prototype.initUpload = function () {
         var _this = this;
         var multer = require('multer');
-        var upload = multer({ dest: this.configuration.common.tempDirectory });
+        var temp = this.configuration.common.tempDirectory ? this.configuration.common.tempDirectory : "./temp/";
+        var upload = multer({ dest: temp });
         this.app.post('/upload', upload.single('file'), function (req, res) {
             res.setHeader('content-type', 'application/json');
             _this.writeLog("Receive file: '" + req.file.originalname + (req.body ? "', from: " + req.body.station + " (" + req.body.user + ")" : ""));
             var dest = _this.configuration.common.destinationDirectory;
+            var temp = _this.configuration.common.tempDirectory ? _this.configuration.common.tempDirectory : "./temp/";
             var check = _this.checkConfiguration();
             if (!check) {
-                _this.fs.copyFile(_this.configuration.common.tempDirectory + req.file.filename, dest + req.file.originalname, function (err) {
+                _this.fs.copyFile(temp + req.file.filename, dest + req.file.originalname, function (err) {
                     if (err) {
                         res.status(500);
                         _this.writeError(JSON.stringify(err));
@@ -87,12 +89,12 @@ var MsiApiServer = /** @class */ (function () {
                     }
                     else {
                         res.status(200);
-                        _this.fs.unlink(_this.configuration.common.tempDirectory + req.file.filename, function (err1) {
+                        _this.fs.unlink(temp + req.file.filename, function (err1) {
                             if (err1) {
                                 _this.writeError(JSON.stringify(err1));
                             }
                             else {
-                                _this.writeLog(_this.configuration.common.tempDirectory + req.file.filename + " cleaned successfully");
+                                _this.writeLog(temp + req.file.filename + " cleaned successfully");
                             }
                         });
                         res.status(200);
@@ -112,8 +114,20 @@ var MsiApiServer = /** @class */ (function () {
             this.configuration = JSON.parse(conf);
         }
         else {
-            this.writeError("Could not find configuration.json");
+            this.writeError("Could not find the configuration");
         }
+    };
+    MsiApiServer.prototype.initConfiguration = function () {
+        this.configuration = { "common": { "port": 8080, "destinationDirectory": "", "tempDirectory": "./temp/", "logSize": 30 } };
+    };
+    MsiApiServer.prototype.saveConfiguration = function (port, destinationDirectory, logSize) {
+        if (!this.configuration) {
+            this.initConfiguration();
+        }
+        this.configuration.common.port = port;
+        this.configuration.common.logSize = logSize;
+        this.configuration.common.destinationDirectory = destinationDirectory;
+        this.fs.writeFileSync(this.configurationFileName, JSON.stringify(this.configuration));
     };
     /*
     process.on('uncaughtException', function (err) {
@@ -152,7 +166,7 @@ var MsiApiServer = /** @class */ (function () {
     MsiApiServer.prototype.checkConfiguration = function () {
         var mes = null;
         if (!this.configuration) {
-            mes = "No configuration file found";
+            mes = "No configuration set";
         }
         else {
             if (!this.configuration.common) {
@@ -171,6 +185,17 @@ var MsiApiServer = /** @class */ (function () {
             }
         }
         return mes;
+    };
+    MsiApiServer.prototype.getConfiguration = function () {
+        return this.configuration;
+    };
+    MsiApiServer.prototype.getIp = function () {
+        var ip = require('ip');
+        return ip.address();
+    };
+    MsiApiServer.prototype.getOs = function () {
+        var os = require('os');
+        return os;
     };
     return MsiApiServer;
 }());

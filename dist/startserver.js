@@ -7,6 +7,10 @@ $('#startserverbtn').on('click', function () {
 $('#stopserverbtn').on('click', function () {
     msiservr.stopApi();
 });
+$('#saveconfigurationbtn').on('click', function () {
+    msiservr.saveConfiguration($('#configurationPort').val(), $('#configurationDestination').val());
+    initConfiguration();
+});
 setInterval(function () {
     $('#log').html(msiservr.getLogs());
     if (msiservr.getStatus()) {
@@ -16,4 +20,19 @@ setInterval(function () {
         $('#serverStatus').html("<span style='color: red'>OFF</span>");
     }
 }, 1000);
+initConfiguration();
+function initConfiguration() {
+    var conf = msiservr.getConfiguration();
+    if (!conf) {
+        msiservr.loadConfiguration();
+        conf = msiservr.getConfiguration();
+    }
+    $('#configurationPort').val(conf.common.port);
+    $('#configurationDestination').val(conf.common.destinationDirectory);
+    var os = msiservr.getOs();
+    if (os) {
+        var ip = msiservr.getIp();
+        $('#host').html("<span style='font-style: italic'>" + os.hostname() + " (" + ip + ")" + "</span>");
+    }
+}
 //# sourceMappingURL=startserver.js.map

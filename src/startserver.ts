@@ -11,6 +11,11 @@ $('#stopserverbtn').on('click', () => {
     msiservr.stopApi();
 })
 
+$('#saveconfigurationbtn').on('click', () => {
+    msiservr.saveConfiguration($('#configurationPort').val(), $('#configurationDestination').val());
+    initConfiguration();
+})
+
 setInterval(
     () => {
         $('#log').html(msiservr.getLogs());
@@ -21,3 +26,20 @@ setInterval(
         }
     }, 1000
 )
+
+initConfiguration();
+
+function initConfiguration() {
+    let conf = msiservr.getConfiguration();
+    if (!conf) {
+        msiservr.loadConfiguration();
+        conf = msiservr.getConfiguration();
+    }
+    $('#configurationPort').val(conf.common.port);
+    $('#configurationDestination').val(conf.common.destinationDirectory);
+    let os = msiservr.getOs();
+    if (os) {
+        let ip = msiservr.getIp();
+        $('#host').html("<span style='font-style: italic'>" + os.hostname() + " (" + ip + ")" + "</span>");
+    }
+}

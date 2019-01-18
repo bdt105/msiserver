@@ -5,6 +5,13 @@ var MsiApiServer = /** @class */ (function () {
     function MsiApiServer() {
         this.configurationFileName = "configuration.json";
         this.defaultLogSize = 30;
+        this.defaultConfiguration = {
+            "common": {
+                "port": 9090,
+                "destinationDirectory": "N:\\APPRES\\AvisoConfig\\BACKUP\\",
+                "tempDirectory": "./temp/"
+            }
+        };
         this.fs = require('fs');
     }
     MsiApiServer.prototype.getLastError = function () {
@@ -114,7 +121,8 @@ var MsiApiServer = /** @class */ (function () {
             this.configuration = JSON.parse(conf);
         }
         else {
-            this.writeError("Could not find the configuration");
+            this.fs.writeFileSync(this.configurationFileName, JSON.stringify(this.defaultConfiguration));
+            this.loadConfiguration();
         }
     };
     MsiApiServer.prototype.initConfiguration = function () {
@@ -179,7 +187,7 @@ var MsiApiServer = /** @class */ (function () {
                 else {
                     var dest = this.configuration.common.destinationDirectory;
                     if (!this.fs.existsSync(dest)) {
-                        mes = "Destination '" + dest + "' could not be reached";
+                        mes = "Destination directory could not be reached";
                     }
                 }
             }

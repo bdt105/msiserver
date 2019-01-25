@@ -1,61 +1,154 @@
 "use strict";
 exports.__esModule = true;
-var express = require("express");
+var dist_1 = require("bdt105toolbox/dist");
 var MsiApiServer = /** @class */ (function () {
     function MsiApiServer() {
         this.configurationFileName = "configuration.json";
         this.defaultLogSize = 30;
+        this.apiIdentifier = "identifier";
+        this.apiListFiles = "listFiles";
+        this.apiDeleteFile = "deleteFile";
+        this.apiDownlaodFiles = "downloadFile";
+        this.token = "";
+        this.downloading = false;
+        this.started = false;
+        this.rest = new dist_1.Rest();
+        this.toolbox = new dist_1.Toolbox();
         this.defaultConfiguration = {
-            "common": {
-                "port": 9090,
-                "destinationDirectory": "N:\\APPRES\\AvisoConfig\\BACKUP\\",
-                "tempDirectory": "./temp/"
-            }
+            "destinationDirectory": "N:\\APPRES\\AvisoConfig\\BACKUP\\",
+            "tempDirectory": "./temp/",
+            "baseUrl": "http://vps592280.ovh.net/apiupload/",
+            "interval": 30000
         };
         this.fs = require('fs');
     }
     MsiApiServer.prototype.getLastError = function () {
         return this.lastError;
     };
-    MsiApiServer.prototype.initApi = function () {
-        this.loadConfiguration();
-        var check = this.checkConfiguration();
-        if (!check) {
-            this.server = null;
-            this.app = express();
-            this.bodyParser = require('body-parser');
-            this.port = this.configuration.common.port;
-            this.logs = [];
-            this.app.use(this.bodyParser.json({ limit: '50mb' }));
-            this.app.use(this.bodyParser.urlencoded({ limit: '50mb', extended: true, parameterLimit: 50000 }));
-            this.app.use(function (req, res, next) {
-                res.setHeader('Access-Control-Allow-Origin', '*'); // Website you wish to allow to connect
-                res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE'); // Request methods you wish to allow    
-                res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With,content-type'); // Request headers you wish to allow
-                res.setHeader('Access-Control-Allow-Credentials', 'true'); // Set to true if you need the website to include cookies in the requests sent, to the API (e.g. in case you use sessions)
-                // Pass to next layer of middleware
-                next();
-            });
-            this.intApiEntries();
-            this.logs = [];
-            this.listen();
-        }
-        else {
-            this.writeError(check);
+    MsiApiServer.prototype.startDownload = function () {
+        this.nextExecutionDate = new Date(new Date().getTime() + this.configuration.interval);
+        if (this.started) {
+            this.download();
         }
     };
-    MsiApiServer.prototype.stopApi = function () {
-        if (this.server) {
-            this.server.close();
-            this.server = null;
-            this.writeLog("Server stopped");
+    MsiApiServer.prototype.tickDownload = function () {
+        var _this = this;
+        this.deamon = setInterval(function () {
+            _this.startDownload();
+        }, this.configuration.interval);
+    };
+    MsiApiServer.prototype.getNextExecutionDate = function () {
+        return this.toolbox.formatDate(this.nextExecutionDate);
+    };
+    MsiApiServer.prototype.download = function () {
+        var _this = this;
+        if (!this.downloading) {
+            this.listFiles(function (data, error) {
+                if (data && data.statusCode == 200 && data.json && data.json.data && data.json.data.length > 0) {
+                    var fileName_1 = data.json.data[0];
+                    _this.downloading = true;
+                    _this.downloadFile(function (data, error) {
+                        if (!error) {
+                            _this.copyFile(function (data1, error1) {
+                                if (!error1) {
+                                    _this.writeLog("File " + fileName_1 + " copied");
+                                    _this.deleteRemoteFile(function (data2, error2) {
+                                        if (!error2) {
+                                            _this.writeLog("Remote file " + fileName_1 + " deleted");
+                                        }
+                                        else {
+                                            _this.writeError("Remote file " + fileName_1 + " NOT deleted");
+                                            _this.writeError(JSON.stringify(error2));
+                                        }
+                                        _this.downloading = false;
+                                    }, fileName_1);
+                                }
+                                else {
+                                    _this.writeError("File " + fileName_1 + " NOT copied");
+                                    _this.writeError(JSON.stringify(error1));
+                                }
+                            }, fileName_1, fileName_1);
+                        }
+                        else {
+                            _this.writeError("File " + fileName_1 + " NOT copied");
+                            _this.writeError(JSON.stringify(error));
+                        }
+                    }, fileName_1);
+                }
+                else {
+                    if (error) {
+                        _this.writeError(JSON.stringify(error));
+                    }
+                }
+            });
+        }
+    };
+    MsiApiServer.prototype.start = function () {
+        this.loadConfiguration();
+        this.started = this.configuration.identifier != null;
+        this.logs = [];
+        this.startDownload();
+        this.tickDownload();
+        return this.started;
+    };
+    MsiApiServer.prototype.stop = function () {
+        this.started = false;
+        this.downloading = false;
+        if (this.deamon) {
+            clearInterval(this.deamon);
+            this.deamon = null;
+        }
+        return this.started;
+    };
+    MsiApiServer.prototype.getIdentifierFormServer = function (callback) {
+        var _this = this;
+        var url = this.configuration.baseUrl + this.apiIdentifier;
+        this.rest.call(function (data, error) {
+            if (!error) {
+                _this.configuration.identifier = data.json.identifier;
+            }
+            callback(data, error);
+        }, "POST", url, { "token": this.token });
+    };
+    MsiApiServer.prototype.getIdentifier = function () {
+        return this.configuration.identifier;
+    };
+    MsiApiServer.prototype.getNewIdentifier = function (callback) {
+        var _this = this;
+        if (this.configuration) {
+            this.getIdentifierFormServer(function (data, error) {
+                if (!error && data && data.json) {
+                    _this.configuration.identifier = data.json.identifier;
+                    _this.saveConfiguration();
+                    callback(_this.configuration.identifier, null);
+                }
+                else {
+                    callback(data, error);
+                }
+            });
         }
         else {
-            this.writeError("Server was not started");
+            this.lastError = "Configuration error";
+            callback(null, this.lastError);
         }
+    };
+    MsiApiServer.prototype.isStarted = function () {
+        return this.started;
     };
     MsiApiServer.prototype.getStatus = function () {
-        return this.server ? true : false;
+        var mes;
+        if (this.configuration) {
+            if (!this.configuration.identifier) {
+                mes = "No identifier defined";
+            }
+            else {
+                mes = this.started ? "Started" : "Stopped";
+            }
+        }
+        else {
+            mes = "No configuration defined";
+        }
+        return mes;
     };
     MsiApiServer.prototype.write = function (text) {
         var date = new Date().toLocaleDateString() + " " + new Date().toLocaleTimeString();
@@ -63,7 +156,7 @@ var MsiApiServer = /** @class */ (function () {
             this.logs = [];
         }
         else {
-            this.logs.splice(this.configuration.common.logSize ? this.configuration.common.logSize : this.defaultLogSize, this.logs.length);
+            this.logs.splice(this.configuration.logSize ? this.configuration.logSize : this.defaultLogSize, this.logs.length);
         }
         this.logs.splice(0, 0, date + " " + text);
     };
@@ -73,47 +166,32 @@ var MsiApiServer = /** @class */ (function () {
     MsiApiServer.prototype.writeError = function (text) {
         this.write("<span style='color: red'>" + text + "</span>");
     };
-    MsiApiServer.prototype.intApiEntries = function () {
-        this.initUpload();
-    };
-    MsiApiServer.prototype.initUpload = function () {
+    MsiApiServer.prototype.copyFile = function (callback, fileName, originalFileName) {
         var _this = this;
-        var multer = require('multer');
-        var temp = this.configuration.common.tempDirectory ? this.configuration.common.tempDirectory : "./temp/";
-        var upload = multer({ dest: temp });
-        this.app.post('/upload', upload.single('file'), function (req, res) {
-            res.setHeader('content-type', 'application/json');
-            _this.writeLog("Receive file: '" + req.file.originalname + (req.body ? "', from: " + req.body.station + " (" + req.body.user + ")" : ""));
-            var dest = _this.configuration.common.destinationDirectory;
-            var temp = _this.configuration.common.tempDirectory ? _this.configuration.common.tempDirectory : "./temp/";
-            var check = _this.checkConfiguration();
-            if (!check) {
-                _this.fs.copyFile(temp + req.file.filename, dest + req.file.originalname, function (err) {
-                    if (err) {
-                        res.status(500);
-                        _this.writeError(JSON.stringify(err));
-                        res.send(JSON.stringify({ status: "ERR", error: err }));
-                    }
-                    else {
-                        res.status(200);
-                        _this.fs.unlink(temp + req.file.filename, function (err1) {
-                            if (err1) {
-                                _this.writeError(JSON.stringify(err1));
-                            }
-                            else {
-                                _this.writeLog(temp + req.file.filename + " cleaned successfully");
-                            }
-                        });
-                        res.status(200);
-                        _this.writeLog(dest + req.file.originalname + " copied successfully");
-                        res.send(JSON.stringify({ status: "OK" }));
-                    }
-                });
+        var ret = null;
+        var dest = this.configuration.destinationDirectory;
+        var temp = this.configuration.tempDirectory ? this.configuration.tempDirectory : "./temp/";
+        this.fs.copyFile(temp + fileName, dest + originalFileName, function (err) {
+            if (err) {
+                ret = err;
             }
             else {
-                _this.writeError(check);
+                _this.fs.unlink(temp + fileName, function (err1) {
+                    if (err1) {
+                        ret = err1;
+                    }
+                    else {
+                        ret = null;
+                    }
+                    callback(null, err1);
+                });
             }
         });
+        return ret;
+    };
+    MsiApiServer.prototype.deleteRemoteFile = function (callback, fileName) {
+        var url = this.configuration.baseUrl + this.apiDeleteFile;
+        this.rest.call(callback, "POST", url, { "token": this.configuration.token, "identifier": this.configuration.identifier, "fileName": fileName });
     };
     MsiApiServer.prototype.loadConfiguration = function () {
         if (this.fs.existsSync(this.configurationFileName)) {
@@ -125,41 +203,31 @@ var MsiApiServer = /** @class */ (function () {
             this.loadConfiguration();
         }
     };
-    MsiApiServer.prototype.initConfiguration = function () {
-        this.configuration = { "common": { "port": 8080, "destinationDirectory": "", "tempDirectory": "./temp/", "logSize": 30 } };
-    };
-    MsiApiServer.prototype.saveConfiguration = function (port, destinationDirectory, logSize) {
-        if (!this.configuration) {
-            this.initConfiguration();
-        }
-        this.configuration.common.port = port;
-        this.configuration.common.logSize = logSize;
-        this.configuration.common.destinationDirectory = destinationDirectory;
+    MsiApiServer.prototype.saveConfiguration = function () {
         this.fs.writeFileSync(this.configurationFileName, JSON.stringify(this.configuration));
     };
-    /*
-    process.on('uncaughtException', function (err) {
-        console.error(err);
-        console.error("Node NOT Exiting...");
-        console.log(err);
-        console.log("Node NOT Exiting...");
-    });
-    */
-    MsiApiServer.prototype.listen = function () {
-        try {
-            this.server = this.app.listen(this.port);
-            if (this.server) {
-                if (this.server.listening) {
-                    this.writeLog("Listening to port " + this.port);
-                }
-                else {
-                    this.writeError("Not listening to port " + this.port);
-                }
+    MsiApiServer.prototype.downloadFile = function (callback, fileName) {
+        var _this = this;
+        var url = this.configuration.baseUrl + this.apiDownlaodFiles;
+        this.rest.call(function (data, error) {
+            var temp = _this.configuration.tempDirectory;
+            if (!_this.fs.existsSync(temp)) {
+                _this.fs.mkdirSync(temp);
             }
-        }
-        catch (error) {
-            this.writeError(JSON.stringify(error));
-        }
+            if (_this.fs.existsSync(temp + fileName)) {
+                _this.fs.unlinkSync(temp + fileName);
+            }
+            _this.fs.writeFileSync(temp + fileName, data.json, "utf8");
+            _this.writeLog("File " + fileName + " downloaded");
+            callback(data, error);
+        }, "POST", url, { "identifier": this.configuration.identifier, "token": this.token, "fileName": fileName });
+    };
+    MsiApiServer.prototype.listFiles = function (callback) {
+        var temp = this.configuration.tempDirectory;
+        var url = this.configuration.baseUrl + this.apiListFiles;
+        this.rest.call(function (data, error) {
+            callback(data, error);
+        }, "POST", url, { "token": this.token, "identifier": this.configuration.identifier });
     };
     MsiApiServer.prototype.getLogs = function (lineSeparator) {
         if (lineSeparator === void 0) { lineSeparator = "<br>"; }
@@ -171,39 +239,8 @@ var MsiApiServer = /** @class */ (function () {
         }
         return ret;
     };
-    MsiApiServer.prototype.checkConfiguration = function () {
-        var mes = null;
-        if (!this.configuration) {
-            mes = "No configuration set";
-        }
-        else {
-            if (!this.configuration.common) {
-                mes = "Configuration file mal formed, 'common' section missing";
-            }
-            else {
-                if (!this.configuration.common.destinationDirectory) {
-                    mes = "Configuration file mal formed, 'common.destinationDirectory' section missing";
-                }
-                else {
-                    var dest = this.configuration.common.destinationDirectory;
-                    if (!this.fs.existsSync(dest)) {
-                        mes = "Destination directory could not be reached";
-                    }
-                }
-            }
-        }
-        return mes;
-    };
     MsiApiServer.prototype.getConfiguration = function () {
         return this.configuration;
-    };
-    MsiApiServer.prototype.getIp = function () {
-        var ip = require('ip');
-        return ip.address();
-    };
-    MsiApiServer.prototype.getOs = function () {
-        var os = require('os');
-        return os;
     };
     return MsiApiServer;
 }());

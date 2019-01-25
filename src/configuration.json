@@ -1,7 +1,8 @@
 {
-    "common":{
-        "port": 8080,
-        "destinationDirectory": "./toto/",
-        "tempDirectory": "./temp/"
-    }
+    "destinationDirectory1": "N:\\APPRES\\AvisoConfig\\BACKUP\\",
+    "destinationDirectory": "./toto/",
+    "tempDirectory": "./temp/",
+    "baseUrl": "http://192.168.1.202:3200/",
+    "interval": 180000,
+    "identifier": "3wcv6kf4zyujrcaoo3h"
 }

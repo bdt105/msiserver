@@ -4,26 +4,26 @@ let msiserver = require('./dist/msiapiserver');
 let msiservr = new msiserver.MsiApiServer();
 
 $('#startserverbtn').on('click', () => {
-    msiservr.initApi();
+    msiservr.start();
 })
 
 $('#stopserverbtn').on('click', () => {
-    msiservr.stopApi();
+    msiservr.stop();
 })
 
-$('#saveconfigurationbtn').on('click', () => {
-    msiservr.saveConfiguration($('#configurationPort').val(), $('#configurationDestination').val());
-    initConfiguration();
+$('#getidentifierbtn').on('click', () => {
+    msiservr.getNewIdentifier(
+        (data: any, error: any) =>{
+            $('#identifier').html(data);
+        }
+    )
 })
 
 setInterval(
     () => {
         $('#log').html(msiservr.getLogs());
-        if (msiservr.getStatus()) {
-            $('#serverStatus').html("<span style='color: green'>ON</span>");
-        } else {
-            $('#serverStatus').html("<span style='color: red'>OFF</span>");
-        }
+        $('#serverStatus').html("<span>" + msiservr.getStatus() + "</span>");
+        $('#info').html("Identifier: " + msiservr.getIdentifier() + (msiservr.getNextExecutionDate() ? ", next execution: " + msiservr.getNextExecutionDate() : ""));
     }, 1000
 )
 
@@ -34,12 +34,5 @@ function initConfiguration() {
     if (!conf) {
         msiservr.loadConfiguration();
         conf = msiservr.getConfiguration();
-    }
-    $('#configurationPort').val(conf.common.port);
-    $('#configurationDestination').val(conf.common.destinationDirectory);
-    let os = msiservr.getOs();
-    if (os) {
-        let ip = msiservr.getIp();
-        $('#host').html("<span style='font-style: italic'>" + os.hostname() + " (" + ip + ")" + "</span>");
     }
 }

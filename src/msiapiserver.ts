@@ -1,25 +1,34 @@
-import express = require('express');
-import { fstat } from 'fs';
+import { Rest, Toolbox } from 'bdt105toolbox/dist';
 
 export class MsiApiServer {
-    private app: any;
     private configuration: any;
-    private bodyParser: any;
-    private port: number;
     private fs: any;
     private logs: any;
     private configurationFileName = "configuration.json";
     private lastError: any;
-    private server: any;
     private defaultLogSize = 30;
+    private "jwtSecret": "122344";
+    private apiIdentifier = "identifier";
+    private apiListFiles = "listFiles";
+    private apiDeleteFile = "deleteFile";
+    private apiDownlaodFiles = "downloadFile";
+    private token = "";
+    private downloading = false;
+
+    private deamon: any;
+
+    private started = false;
+
+    private rest = new Rest();
+    private toolbox = new Toolbox()
 
     private defaultConfiguration = {
-        "common": {
-            "port": 9090,
-            "destinationDirectory": "N:\\APPRES\\AvisoConfig\\BACKUP\\",
-            "tempDirectory": "./temp/"
-        }
+        "destinationDirectory": "N:\\APPRES\\AvisoConfig\\BACKUP\\",
+        "tempDirectory": "./temp/",
+        "baseUrl": "http://vps592280.ovh.net/apiupload/",
+        "interval": 30000
     }
+    private nextExecutionDate: Date;
 
     constructor() {
         this.fs = require('fs');
@@ -29,46 +38,137 @@ export class MsiApiServer {
         return this.lastError;
     }
 
-    initApi() {
-        this.loadConfiguration();
-        let check = this.checkConfiguration();
-        if (!check) {
-            this.server = null;
-            this.app = express();
-            this.bodyParser = require('body-parser');
-            this.port = this.configuration.common.port;
-            this.logs = [];
-            this.app.use(this.bodyParser.json({ limit: '50mb' }));
-            this.app.use(this.bodyParser.urlencoded({ limit: '50mb', extended: true, parameterLimit: 50000 }));
-
-            this.app.use(function (req: any, res: any, next: any) {
-                res.setHeader('Access-Control-Allow-Origin', '*'); // Website you wish to allow to connect
-                res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE'); // Request methods you wish to allow    
-                res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With,content-type'); // Request headers you wish to allow
-                res.setHeader('Access-Control-Allow-Credentials', 'true'); // Set to true if you need the website to include cookies in the requests sent, to the API (e.g. in case you use sessions)
-                // Pass to next layer of middleware
-                next();
-            });
-            this.intApiEntries();
-            this.logs = [];
-            this.listen();
-        } else {
-            this.writeError(check);
+    private startDownload() {
+        this.nextExecutionDate = new Date( new Date().getTime() + this.configuration.interval);
+        if (this.started) {
+            this.download();
         }
     }
 
-    stopApi() {
-        if (this.server) {
-            this.server.close();
-            this.server = null;
-            this.writeLog("Server stopped");
-        } else {
-            this.writeError("Server was not started");
+    private tickDownload() {
+        this.deamon = setInterval(
+            () => {
+                this.startDownload();
+            }, this.configuration.interval)
+    }
+
+    getNextExecutionDate() {
+        return this.toolbox.formatDate(this.nextExecutionDate);
+    }
+
+    private download() {
+        if (!this.downloading) {
+            this.listFiles(
+                (data: any, error: any) => {
+                    if (data && data.statusCode == 200 && data.json && data.json.data && data.json.data.length > 0) {
+                        let fileName = data.json.data[0];
+                        this.downloading = true;
+                        this.downloadFile(
+                            (data: any, error: any) => {
+                                if (!error) {
+                                    this.copyFile(
+                                        (data1: any, error1: any) => {
+                                            if (!error1) {
+                                                this.writeLog("File " + fileName + " copied");
+                                                this.deleteRemoteFile(
+                                                    (data2: any, error2: any) => {
+                                                        if (!error2) {
+                                                            this.writeLog("Remote file " + fileName + " deleted");
+                                                        } else {
+                                                            this.writeError("Remote file " + fileName + " NOT deleted");
+                                                            this.writeError(JSON.stringify(error2));
+                                                        }
+                                                        this.downloading = false;
+                                                    }, fileName)
+                                            } else {
+                                                this.writeError("File " + fileName + " NOT copied");
+                                                this.writeError(JSON.stringify(error1));
+                                            }
+                                        }, fileName, fileName);
+                                } else {
+                                    this.writeError("File " + fileName + " NOT copied");
+                                    this.writeError(JSON.stringify(error));
+                                }
+                            }, fileName);
+                    } else {
+                        if (error) {
+                            this.writeError(JSON.stringify(error));
+                        }
+                    }
+                })
         }
+    }
+
+    start() {
+        this.loadConfiguration();
+        this.started = this.configuration.identifier != null;
+        this.logs = [];
+        this.startDownload();
+        this.tickDownload();
+        return this.started;
+    }
+
+    stop() {
+        this.started = false;
+        this.downloading = false;
+        if (this.deamon) {
+            clearInterval(this.deamon);
+            this.deamon = null;
+        }
+        return this.started;
+    }
+
+    private getIdentifierFormServer(callback: Function) {
+        let url = this.configuration.baseUrl + this.apiIdentifier;
+        this.rest.call(
+            (data: any, error: any) => {
+                if (!error) {
+                    this.configuration.identifier = data.json.identifier;
+                }
+                callback(data, error);
+            }, "POST", url, { "token": this.token }
+        )
+    }
+
+    getIdentifier() {
+        return this.configuration.identifier;
+    }
+
+    getNewIdentifier(callback: Function) {
+        if (this.configuration) {
+            this.getIdentifierFormServer(
+                (data: any, error: any) => {
+                    if (!error && data && data.json) {
+                        this.configuration.identifier = data.json.identifier;
+                        this.saveConfiguration();
+                        callback(this.configuration.identifier, null);
+                    } else {
+                        callback(data, error);
+                    }
+                }
+            )
+        } else {
+            this.lastError = "Configuration error";
+            callback(null, this.lastError);
+        }
+    }
+
+    isStarted() {
+        return this.started;
     }
 
     getStatus() {
-        return this.server ? true : false;
+        let mes: string;
+        if (this.configuration) {
+            if (!this.configuration.identifier) {
+                mes = "No identifier defined";
+            } else {
+                mes = this.started ? "Started" : "Stopped";
+            }
+        } else {
+            mes = "No configuration defined";
+        }
+        return mes;
     }
 
     private write(text: string) {
@@ -76,7 +176,7 @@ export class MsiApiServer {
         if (!this.logs) {
             this.logs = [];
         } else {
-            this.logs.splice(this.configuration.common.logSize ? this.configuration.common.logSize : this.defaultLogSize, this.logs.length);
+            this.logs.splice(this.configuration.logSize ? this.configuration.logSize : this.defaultLogSize, this.logs.length);
         }
         this.logs.splice(0, 0, date + " " + text);
     }
@@ -89,48 +189,36 @@ export class MsiApiServer {
         this.write("<span style='color: red'>" + text + "</span>");
     }
 
-    private intApiEntries() {
-        this.initUpload();
-    }
-
-    private initUpload() {
-        var multer = require('multer');
-        let temp = this.configuration.common.tempDirectory ? this.configuration.common.tempDirectory : "./temp/";
-        var upload = multer({ dest: temp });
-
-        this.app.post('/upload', upload.single('file'), (req: any, res: any) => {
-            res.setHeader('content-type', 'application/json');
-            this.writeLog("Receive file: '" + req.file.originalname + (req.body ? "', from: " + req.body.station + " (" + req.body.user + ")" : ""));
-            let dest = this.configuration.common.destinationDirectory;
-            let temp = this.configuration.common.tempDirectory ? this.configuration.common.tempDirectory : "./temp/";
-            let check = this.checkConfiguration();
-            if (!check) {
-                this.fs.copyFile(temp + req.file.filename, dest + req.file.originalname,
-                    (err: any) => {
-                        if (err) {
-                            res.status(500);
-                            this.writeError(JSON.stringify(err));
-                            res.send(JSON.stringify({ status: "ERR", error: err }));
+    private copyFile(callback: Function, fileName: string, originalFileName: string): any {
+        let ret = null;
+        let dest = this.configuration.destinationDirectory;
+        let temp = this.configuration.tempDirectory ? this.configuration.tempDirectory : "./temp/";
+        this.fs.copyFile(temp + fileName, dest + originalFileName,
+            (err: any) => {
+                if (err) {
+                    ret = err;
+                } else {
+                    this.fs.unlink(temp + fileName, (err1: any) => {
+                        if (err1) {
+                            ret = err1;
                         } else {
-                            res.status(200);
-                            this.fs.unlink(temp + req.file.filename, (err1: any) => {
-                                if (err1) {
-                                    this.writeError(JSON.stringify(err1));
-                                } else {
-                                    this.writeLog(temp + req.file.filename + " cleaned successfully");
-                                }
-                            });
-                            res.status(200);
-                            this.writeLog(dest + req.file.originalname + " copied successfully");
-                            res.send(JSON.stringify({ status: "OK" }));
+                            ret = null;
                         }
+                        callback(null, err1);
                     });
-            } else {
-                this.writeError(check);
-            }
-        });
+                }
+            });
+        return ret;
     }
 
+
+    private deleteRemoteFile(callback: Function, fileName: string) {
+        let url = this.configuration.baseUrl + this.apiDeleteFile;
+        this.rest.call(
+            callback, "POST", url, { "token": this.configuration.token, "identifier": this.configuration.identifier, "fileName": fileName }
+        )
+
+    }
     loadConfiguration() {
         if (this.fs.existsSync(this.configurationFileName)) {
             var conf = this.fs.readFileSync(this.configurationFileName);
@@ -141,42 +229,36 @@ export class MsiApiServer {
         }
     }
 
-    initConfiguration() {
-        this.configuration = { "common": { "port": 8080, "destinationDirectory": "", "tempDirectory": "./temp/", "logSize": 30 } }
-    }
-
-    saveConfiguration(port: number, destinationDirectory: string, logSize: number) {
-        if (!this.configuration) {
-            this.initConfiguration();
-        }
-        this.configuration.common.port = port;
-        this.configuration.common.logSize = logSize;
-        this.configuration.common.destinationDirectory = destinationDirectory;
+    saveConfiguration() {
         this.fs.writeFileSync(this.configurationFileName, JSON.stringify(this.configuration));
     }
 
-    /*
-    process.on('uncaughtException', function (err) {
-        console.error(err);
-        console.error("Node NOT Exiting...");
-        console.log(err);
-        console.log("Node NOT Exiting...");
-    });
-    */
-
-    private listen() {
-        try {
-            this.server = this.app.listen(this.port);
-            if (this.server) {
-                if (this.server.listening) {
-                    this.writeLog("Listening to port " + this.port);
-                } else {
-                    this.writeError("Not listening to port " + this.port);
+    private downloadFile(callback: Function, fileName: string) {
+        let url = this.configuration.baseUrl + this.apiDownlaodFiles;
+        this.rest.call(
+            (data: any, error: any) => {
+                let temp = this.configuration.tempDirectory;
+                if (!this.fs.existsSync(temp)) {
+                    this.fs.mkdirSync(temp);
                 }
-            }
-        } catch (error) {
-            this.writeError(JSON.stringify(error));
-        }
+                if (this.fs.existsSync(temp + fileName)) {
+                    this.fs.unlinkSync(temp + fileName);
+                }
+                this.fs.writeFileSync(temp + fileName, data.json, "utf8");
+                this.writeLog("File " + fileName + " downloaded");
+                callback(data, error);
+            }, "POST", url, { "identifier": this.configuration.identifier, "token": this.token, "fileName": fileName }
+        )
+    }
+
+    private listFiles(callback: Function) {
+        let temp = this.configuration.tempDirectory;
+        let url = this.configuration.baseUrl + this.apiListFiles;
+        this.rest.call(
+            (data: any, error: any) => {
+                callback(data, error);
+            }, "POST", url, { "token": this.token, "identifier": this.configuration.identifier }
+        )
     }
 
     getLogs(lineSeparator = "<br>") {
@@ -189,39 +271,8 @@ export class MsiApiServer {
         return ret;
     }
 
-    checkConfiguration() {
-        let mes = null;
-        if (!this.configuration) {
-            mes = "No configuration set";
-        } else {
-            if (!this.configuration.common) {
-                mes = "Configuration file mal formed, 'common' section missing";
-            } else {
-                if (!this.configuration.common.destinationDirectory) {
-                    mes = "Configuration file mal formed, 'common.destinationDirectory' section missing";
-                } else {
-                    let dest = this.configuration.common.destinationDirectory;
-                    if (!this.fs.existsSync(dest)) {
-                        mes = "Destination directory could not be reached"
-                    }
-                }
-            }
-        }
-        return mes;
-    }
-
     getConfiguration() {
         return this.configuration;
     }
 
-
-    getIp() {
-        let ip = require('ip');
-        return ip.address();
-    }
-
-    getOs() {
-        let os = require('os');
-        return os;
-    }
 }

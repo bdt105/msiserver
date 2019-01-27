@@ -11,6 +11,15 @@
 	<div class="container">
 		<h1>MSI Server <span id="serverStatus"></span></h1>
 		<h6 id="info"></h6>
+		<p>
+			<small>Started </small><small id="startDate" class="badge badge-success"></small> <small>- stopped </small><small id="stopDate" class="badge badge-danger"></small>
+		</p>
+		<p>
+			<small style='color: blue' id="currentState"></small>
+		</p>
+		<p>
+			<small>File copied </small><span class="badge badge-primary" id="countFileCopied"></span>
+		</p>
 		<button class="btn btn-warning" id="getidentifierbtn">Get identifier</button>
 		<button class="btn btn-success" id="startserverbtn">Start</button>
 		<button class="btn btn-danger" id="stopserverbtn">Stop</button>

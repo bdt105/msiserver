@@ -14,9 +14,13 @@ $('#getidentifierbtn').on('click', function () {
 });
 setInterval(function () {
     $('#log').html(msiservr.getLogs());
-    $('#serverStatus').html("<span>" + msiservr.getStatus() + "</span>");
-    $('#info').html("Identifier: " + msiservr.getIdentifier() + (msiservr.getNextExecutionDate() ? ", next execution: " + msiservr.getNextExecutionDate() : ""));
-}, 1000);
+    $('#serverStatus').html("<br><span style='" + (msiservr.isStarted() ? "color: green'>ON" : "color: red'>OFF") + "</span>");
+    $('#currentState').html((msiservr.getNextExecutionDate() ? msiservr.getNextExecutionDate() + " - " : "") + msiservr.getCurrentState());
+    $('#countFileCopied').html(msiservr.getCountFileCopied());
+    $('#startDate').html(msiservr.getStartDate());
+    $('#stopDate').html(msiservr.getStopDate());
+    $('#info').html("Identifier: " + msiservr.getIdentifier());
+}, 500);
 initConfiguration();
 function initConfiguration() {
     var conf = msiservr.getConfiguration();

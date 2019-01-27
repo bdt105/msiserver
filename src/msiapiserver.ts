@@ -15,12 +15,19 @@ export class MsiApiServer {
     private token = "";
     private downloading = false;
 
+    private currentState = "";
+
     private deamon: any;
+
+    private countFileCopied = 0;
 
     private started = false;
 
     private rest = new Rest();
     private toolbox = new Toolbox()
+
+    private startDate: Date;
+    private stopDate: Date;
 
     private defaultConfiguration = {
         "destinationDirectory": "N:\\APPRES\\AvisoConfig\\BACKUP\\",
@@ -39,7 +46,7 @@ export class MsiApiServer {
     }
 
     private startDownload() {
-        this.nextExecutionDate = new Date( new Date().getTime() + this.configuration.interval);
+        this.nextExecutionDate = new Date(new Date().getTime() + this.configuration.interval);
         if (this.started) {
             this.download();
         }
@@ -56,66 +63,131 @@ export class MsiApiServer {
         return this.toolbox.formatDate(this.nextExecutionDate);
     }
 
+    private setCurrentState(state: string) {
+        this.currentState = state;
+    }
+
     private download() {
-        if (!this.downloading) {
-            this.listFiles(
-                (data: any, error: any) => {
-                    if (data && data.statusCode == 200 && data.json && data.json.data && data.json.data.length > 0) {
-                        let fileName = data.json.data[0];
-                        this.downloading = true;
-                        this.downloadFile(
-                            (data: any, error: any) => {
-                                if (!error) {
-                                    this.copyFile(
-                                        (data1: any, error1: any) => {
-                                            if (!error1) {
-                                                this.writeLog("File " + fileName + " copied");
-                                                this.deleteRemoteFile(
-                                                    (data2: any, error2: any) => {
-                                                        if (!error2) {
-                                                            this.writeLog("Remote file " + fileName + " deleted");
-                                                        } else {
-                                                            this.writeError("Remote file " + fileName + " NOT deleted");
-                                                            this.writeError(JSON.stringify(error2));
-                                                        }
-                                                        this.downloading = false;
-                                                    }, fileName)
-                                            } else {
-                                                this.writeError("File " + fileName + " NOT copied");
-                                                this.writeError(JSON.stringify(error1));
-                                            }
-                                        }, fileName, fileName);
-                                } else {
+        // if (!this.downloading) {
+        this.downloading = true;
+        this.setCurrentState("Listing files...");
+        this.listFiles(
+            (data: any, error: any) => {
+                if (data && data.statusCode == 200 && data.json && data.json.data && data.json.data.length > 0) {
+                    let fileName = data.json.data[0];
+                    this.setCurrentState("Downloading " + fileName + "...");
+                    this.downloadFile(
+                        (data: any, error: any) => {
+                            this.setCurrentState("Downloading " + fileName + " done");
+                            if (!error && data && data.statusCode == 200) {
+                                this.setCurrentState(fileName + " downloaded");
+                                this.copyFile(
+                                    (data1: any, error1: any) => {
+                                        if (!error1) {
+                                            this.setCurrentState(fileName + " copied");
+                                            // this.writeLog("File " + fileName + " copied");
+                                            this.countFileCopied++;
+                                            this.deleteRemoteFile(
+                                                (data2: any, error2: any) => {
+                                                    if (!error2) {
+                                                        this.writeLog("File " + fileName + " copied");
+                                                        this.setCurrentState("Remote file " + fileName + " deleted");
+                                                    } else {
+                                                        this.writeError("Remote file " + fileName + " NOT deleted");
+                                                        this.writeError(JSON.stringify(error2));
+                                                    }
+                                                    this.downloading = false;
+                                                }, fileName)
+                                        } else {
+                                            this.writeError("File " + fileName + " NOT copied");
+                                            this.writeError(JSON.stringify(error1));
+                                            this.downloading = false;
+                                        }
+                                    }, fileName, fileName);
+                            } else {
+                                if (data && data.statusCode != 403) {
                                     this.writeError("File " + fileName + " NOT copied");
+                                }
+                                if (error) {
                                     this.writeError(JSON.stringify(error));
                                 }
-                            }, fileName);
-                    } else {
-                        if (error) {
-                            this.writeError(JSON.stringify(error));
-                        }
+                                this.downloading = false;
+                            }
+                        }, fileName);
+                } else {
+                    if (data && data.statusCode == 404) {
+                        this.writeError("Identifier unknown. generate a new one please");
                     }
-                })
-        }
+                    if (data && data.statusCode == 200 && data.json && data.json.data && data.json.data.length == 0) {
+                        this.setCurrentState("Nothing to download");
+                    }
+                    if (error) {
+                        this.writeError(JSON.stringify(error));
+                    }
+                    this.downloading = false;
+                }
+            })
+        // }
     }
 
     start() {
-        this.loadConfiguration();
-        this.started = this.configuration.identifier != null;
+        this.startDate = new Date();
+        this.stopDate = null;
         this.logs = [];
-        this.startDownload();
-        this.tickDownload();
-        return this.started;
+        this.countFileCopied = 0;
+        this.started = true;
+        this.downloading = false;
+        this.setCurrentState("Loading configuration");
+        this.loadConfiguration();
+        if (!this.checkConfiguration()) {
+            this.started = false;
+            this.writeError("Error configuration");
+        }
+        if (this.started) {
+            this.setCurrentState("Checking server");
+            this.checkServer(
+                (data: any, error: any) => {
+                    this.setCurrentState("Server checked");
+                    if (!error && data.statusCode == 200) {
+                        this.setCurrentState("Server started");
+                        this.startDownload();
+                        this.tickDownload();
+                    } else {
+                        this.writeError("File server error");
+                        this.writeError(JSON.stringify(error) + (data ? JSON.stringify(data) : ""));
+                        this.started = false;
+                        this.setCurrentState("Server stopped");
+                    }
+                }
+            );
+        }
     }
 
     stop() {
+        this.stopDate = new Date();
         this.started = false;
         this.downloading = false;
         if (this.deamon) {
             clearInterval(this.deamon);
             this.deamon = null;
         }
-        return this.started;
+        this.setCurrentState("Server stopped");
+    }
+
+    getStartDate(){
+        return this.toolbox.formatDate(this.startDate);
+    }
+
+    getStopDate(){
+        return this.toolbox.formatDate(this.stopDate);
+    }
+
+    getServerDate(){
+        return this.started ? this.getStartDate() : this.getStopDate()
+    }
+
+    getCountFileCopied() {
+        return this.countFileCopied;
     }
 
     private getIdentifierFormServer(callback: Function) {
@@ -157,18 +229,30 @@ export class MsiApiServer {
         return this.started;
     }
 
-    getStatus() {
-        let mes: string;
+    getCurrentState() {
+        return this.currentState;
+    }
+
+    checkConfiguration() {
+        let ret = true;
         if (this.configuration) {
             if (!this.configuration.identifier) {
-                mes = "No identifier defined";
-            } else {
-                mes = this.started ? "Started" : "Stopped";
+                this.writeError("No identifier defined");
+                ret = false;
             }
         } else {
-            mes = "No configuration defined";
+            ret = false;
+            this.writeError("No configuration defined");
         }
-        return mes;
+        return ret;
+    }
+
+    checkServer(callback: Function) {
+        this.rest.call(
+            (data: any, error: any) => {
+                callback(data, error);
+            }, "GET", this.configuration.baseUrl
+        )
     }
 
     private write(text: string) {
@@ -237,15 +321,16 @@ export class MsiApiServer {
         let url = this.configuration.baseUrl + this.apiDownlaodFiles;
         this.rest.call(
             (data: any, error: any) => {
-                let temp = this.configuration.tempDirectory;
-                if (!this.fs.existsSync(temp)) {
-                    this.fs.mkdirSync(temp);
+                if (!error && data && data.statusCode == 200) {
+                    let temp = this.configuration.tempDirectory;
+                    if (!this.fs.existsSync(temp)) {
+                        this.fs.mkdirSync(temp);
+                    }
+                    if (this.fs.existsSync(temp + fileName)) {
+                        this.fs.unlinkSync(temp + fileName);
+                    }
+                    this.fs.writeFileSync(temp + fileName, data.json, "utf8");
                 }
-                if (this.fs.existsSync(temp + fileName)) {
-                    this.fs.unlinkSync(temp + fileName);
-                }
-                this.fs.writeFileSync(temp + fileName, data.json, "utf8");
-                this.writeLog("File " + fileName + " downloaded");
                 callback(data, error);
             }, "POST", url, { "identifier": this.configuration.identifier, "token": this.token, "fileName": fileName }
         )
@@ -274,5 +359,6 @@ export class MsiApiServer {
     getConfiguration() {
         return this.configuration;
     }
+
 
 }

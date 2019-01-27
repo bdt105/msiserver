@@ -11,6 +11,8 @@ var MsiApiServer = /** @class */ (function () {
         this.apiDownlaodFiles = "downloadFile";
         this.token = "";
         this.downloading = false;
+        this.currentState = "";
+        this.countFileCopied = 0;
         this.started = false;
         this.rest = new dist_1.Rest();
         this.toolbox = new dist_1.Toolbox();
@@ -40,65 +42,125 @@ var MsiApiServer = /** @class */ (function () {
     MsiApiServer.prototype.getNextExecutionDate = function () {
         return this.toolbox.formatDate(this.nextExecutionDate);
     };
+    MsiApiServer.prototype.setCurrentState = function (state) {
+        this.currentState = state;
+    };
     MsiApiServer.prototype.download = function () {
         var _this = this;
-        if (!this.downloading) {
-            this.listFiles(function (data, error) {
-                if (data && data.statusCode == 200 && data.json && data.json.data && data.json.data.length > 0) {
-                    var fileName_1 = data.json.data[0];
-                    _this.downloading = true;
-                    _this.downloadFile(function (data, error) {
-                        if (!error) {
-                            _this.copyFile(function (data1, error1) {
-                                if (!error1) {
-                                    _this.writeLog("File " + fileName_1 + " copied");
-                                    _this.deleteRemoteFile(function (data2, error2) {
-                                        if (!error2) {
-                                            _this.writeLog("Remote file " + fileName_1 + " deleted");
-                                        }
-                                        else {
-                                            _this.writeError("Remote file " + fileName_1 + " NOT deleted");
-                                            _this.writeError(JSON.stringify(error2));
-                                        }
-                                        _this.downloading = false;
-                                    }, fileName_1);
-                                }
-                                else {
-                                    _this.writeError("File " + fileName_1 + " NOT copied");
-                                    _this.writeError(JSON.stringify(error1));
-                                }
-                            }, fileName_1, fileName_1);
-                        }
-                        else {
+        // if (!this.downloading) {
+        this.downloading = true;
+        this.setCurrentState("Listing files...");
+        this.listFiles(function (data, error) {
+            if (data && data.statusCode == 200 && data.json && data.json.data && data.json.data.length > 0) {
+                var fileName_1 = data.json.data[0];
+                _this.setCurrentState("Downloading " + fileName_1 + "...");
+                _this.downloadFile(function (data, error) {
+                    _this.setCurrentState("Downloading " + fileName_1 + " done");
+                    if (!error && data && data.statusCode == 200) {
+                        _this.setCurrentState(fileName_1 + " downloaded");
+                        _this.copyFile(function (data1, error1) {
+                            if (!error1) {
+                                _this.setCurrentState(fileName_1 + " copied");
+                                // this.writeLog("File " + fileName + " copied");
+                                _this.countFileCopied++;
+                                _this.deleteRemoteFile(function (data2, error2) {
+                                    if (!error2) {
+                                        _this.writeLog("File " + fileName_1 + " copied");
+                                        _this.setCurrentState("Remote file " + fileName_1 + " deleted");
+                                    }
+                                    else {
+                                        _this.writeError("Remote file " + fileName_1 + " NOT deleted");
+                                        _this.writeError(JSON.stringify(error2));
+                                    }
+                                    _this.downloading = false;
+                                }, fileName_1);
+                            }
+                            else {
+                                _this.writeError("File " + fileName_1 + " NOT copied");
+                                _this.writeError(JSON.stringify(error1));
+                                _this.downloading = false;
+                            }
+                        }, fileName_1, fileName_1);
+                    }
+                    else {
+                        if (data && data.statusCode != 403) {
                             _this.writeError("File " + fileName_1 + " NOT copied");
+                        }
+                        if (error) {
                             _this.writeError(JSON.stringify(error));
                         }
-                    }, fileName_1);
+                        _this.downloading = false;
+                    }
+                }, fileName_1);
+            }
+            else {
+                if (data && data.statusCode == 404) {
+                    _this.writeError("Identifier unknown. generate a new one please");
+                }
+                if (data && data.statusCode == 200 && data.json && data.json.data && data.json.data.length == 0) {
+                    _this.setCurrentState("Nothing to download");
+                }
+                if (error) {
+                    _this.writeError(JSON.stringify(error));
+                }
+                _this.downloading = false;
+            }
+        });
+        // }
+    };
+    MsiApiServer.prototype.start = function () {
+        var _this = this;
+        this.startDate = new Date();
+        this.stopDate = null;
+        this.logs = [];
+        this.countFileCopied = 0;
+        this.started = true;
+        this.downloading = false;
+        this.setCurrentState("Loading configuration");
+        this.loadConfiguration();
+        if (!this.checkConfiguration()) {
+            this.started = false;
+            this.writeError("Error configuration");
+        }
+        if (this.started) {
+            this.setCurrentState("Checking server");
+            this.checkServer(function (data, error) {
+                _this.setCurrentState("Server checked");
+                if (!error && data.statusCode == 200) {
+                    _this.setCurrentState("Server started");
+                    _this.startDownload();
+                    _this.tickDownload();
                 }
                 else {
-                    if (error) {
-                        _this.writeError(JSON.stringify(error));
-                    }
+                    _this.writeError("File server error");
+                    _this.writeError(JSON.stringify(error) + (data ? JSON.stringify(data) : ""));
+                    _this.started = false;
+                    _this.setCurrentState("Server stopped");
                 }
             });
         }
     };
-    MsiApiServer.prototype.start = function () {
-        this.loadConfiguration();
-        this.started = this.configuration.identifier != null;
-        this.logs = [];
-        this.startDownload();
-        this.tickDownload();
-        return this.started;
-    };
     MsiApiServer.prototype.stop = function () {
+        this.stopDate = new Date();
         this.started = false;
         this.downloading = false;
         if (this.deamon) {
             clearInterval(this.deamon);
             this.deamon = null;
         }
-        return this.started;
+        this.setCurrentState("Server stopped");
+    };
+    MsiApiServer.prototype.getStartDate = function () {
+        return this.toolbox.formatDate(this.startDate);
+    };
+    MsiApiServer.prototype.getStopDate = function () {
+        return this.toolbox.formatDate(this.stopDate);
+    };
+    MsiApiServer.prototype.getServerDate = function () {
+        return this.started ? this.getStartDate() : this.getStopDate();
+    };
+    MsiApiServer.prototype.getCountFileCopied = function () {
+        return this.countFileCopied;
     };
     MsiApiServer.prototype.getIdentifierFormServer = function (callback) {
         var _this = this;
@@ -135,20 +197,27 @@ var MsiApiServer = /** @class */ (function () {
     MsiApiServer.prototype.isStarted = function () {
         return this.started;
     };
-    MsiApiServer.prototype.getStatus = function () {
-        var mes;
+    MsiApiServer.prototype.getCurrentState = function () {
+        return this.currentState;
+    };
+    MsiApiServer.prototype.checkConfiguration = function () {
+        var ret = true;
         if (this.configuration) {
             if (!this.configuration.identifier) {
-                mes = "No identifier defined";
-            }
-            else {
-                mes = this.started ? "Started" : "Stopped";
+                this.writeError("No identifier defined");
+                ret = false;
             }
         }
         else {
-            mes = "No configuration defined";
+            ret = false;
+            this.writeError("No configuration defined");
         }
-        return mes;
+        return ret;
+    };
+    MsiApiServer.prototype.checkServer = function (callback) {
+        this.rest.call(function (data, error) {
+            callback(data, error);
+        }, "GET", this.configuration.baseUrl);
     };
     MsiApiServer.prototype.write = function (text) {
         var date = new Date().toLocaleDateString() + " " + new Date().toLocaleTimeString();
@@ -210,15 +279,16 @@ var MsiApiServer = /** @class */ (function () {
         var _this = this;
         var url = this.configuration.baseUrl + this.apiDownlaodFiles;
         this.rest.call(function (data, error) {
-            var temp = _this.configuration.tempDirectory;
-            if (!_this.fs.existsSync(temp)) {
-                _this.fs.mkdirSync(temp);
+            if (!error && data && data.statusCode == 200) {
+                var temp = _this.configuration.tempDirectory;
+                if (!_this.fs.existsSync(temp)) {
+                    _this.fs.mkdirSync(temp);
+                }
+                if (_this.fs.existsSync(temp + fileName)) {
+                    _this.fs.unlinkSync(temp + fileName);
+                }
+                _this.fs.writeFileSync(temp + fileName, data.json, "utf8");
             }
-            if (_this.fs.existsSync(temp + fileName)) {
-                _this.fs.unlinkSync(temp + fileName);
-            }
-            _this.fs.writeFileSync(temp + fileName, data.json, "utf8");
-            _this.writeLog("File " + fileName + " downloaded");
             callback(data, error);
         }, "POST", url, { "identifier": this.configuration.identifier, "token": this.token, "fileName": fileName });
     };

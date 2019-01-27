@@ -13,7 +13,7 @@ $('#stopserverbtn').on('click', () => {
 
 $('#getidentifierbtn').on('click', () => {
     msiservr.getNewIdentifier(
-        (data: any, error: any) =>{
+        (data: any, error: any) => {
             $('#identifier').html(data);
         }
     )
@@ -22,9 +22,13 @@ $('#getidentifierbtn').on('click', () => {
 setInterval(
     () => {
         $('#log').html(msiservr.getLogs());
-        $('#serverStatus').html("<span>" + msiservr.getStatus() + "</span>");
-        $('#info').html("Identifier: " + msiservr.getIdentifier() + (msiservr.getNextExecutionDate() ? ", next execution: " + msiservr.getNextExecutionDate() : ""));
-    }, 1000
+        $('#serverStatus').html("<br><span style='" + (msiservr.isStarted() ? "color: green'>ON" : "color: red'>OFF") + "</span>");
+        $('#currentState').html((msiservr.getNextExecutionDate() ? msiservr.getNextExecutionDate() + " - " : "") + msiservr.getCurrentState());
+        $('#countFileCopied').html(msiservr.getCountFileCopied());
+        $('#startDate').html(msiservr.getStartDate());
+        $('#stopDate').html(msiservr.getStopDate());
+        $('#info').html("Identifier: " + msiservr.getIdentifier());
+    }, 500
 )
 
 initConfiguration();

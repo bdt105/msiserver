@@ -20,7 +20,7 @@ var MsiApiServer = /** @class */ (function () {
             "destinationDirectory": "N:\\appres\\Avisoconfig\\BACKUP\\",
             "tempDirectory": "./temp/",
             "baseUrl": "http://vps592280.ovh.net/apiupload/",
-            "interval": 30000
+            "interval": 2000
         };
         this.fs = require('fs');
     }

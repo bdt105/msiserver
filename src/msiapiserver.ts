@@ -33,7 +33,7 @@ export class MsiApiServer {
         "destinationDirectory": "N:\\appres\\Avisoconfig\\BACKUP\\",
         "tempDirectory": "./temp/",
         "baseUrl": "http://vps592280.ovh.net/apiupload/",
-        "interval": 30000
+        "interval": 2000
     }
     private nextExecutionDate: Date;
 

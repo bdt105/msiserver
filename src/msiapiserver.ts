@@ -30,7 +30,7 @@ export class MsiApiServer {
     private stopDate: Date;
 
     private defaultConfiguration = {
-        "destinationDirectory": "N:\\APPRES\\AvisoConfig\\BACKUP\\",
+        "destinationDirectory": "N:\\appres\\Avisoconfig\\BACKUP\\",
         "tempDirectory": "./temp/",
         "baseUrl": "http://vps592280.ovh.net/apiupload/",
         "interval": 30000

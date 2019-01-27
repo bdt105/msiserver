@@ -17,7 +17,7 @@ var MsiApiServer = /** @class */ (function () {
         this.rest = new dist_1.Rest();
         this.toolbox = new dist_1.Toolbox();
         this.defaultConfiguration = {
-            "destinationDirectory": "N:\\APPRES\\AvisoConfig\\BACKUP\\",
+            "destinationDirectory": "N:\\appres\\Avisoconfig\\BACKUP\\",
             "tempDirectory": "./temp/",
             "baseUrl": "http://vps592280.ovh.net/apiupload/",
             "interval": 30000

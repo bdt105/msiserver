@@ -10,7 +10,6 @@ var MsiApiServer = /** @class */ (function () {
         this.apiDeleteFile = "deleteFile";
         this.apiDownlaodFiles = "downloadFile";
         this.token = "";
-        this.downloading = false;
         this.currentState = "";
         this.countFileCopied = 0;
         this.started = false;
@@ -48,7 +47,6 @@ var MsiApiServer = /** @class */ (function () {
     MsiApiServer.prototype.download = function () {
         var _this = this;
         // if (!this.downloading) {
-        this.downloading = true;
         this.setCurrentState("Listing files...");
         this.listFiles(function (data, error) {
             if (data && data.statusCode == 200 && data.json && data.json.data && data.json.data.length > 0) {
@@ -61,10 +59,9 @@ var MsiApiServer = /** @class */ (function () {
                         _this.copyFile(function (data1, error1) {
                             if (!error1) {
                                 _this.setCurrentState(fileName_1 + " copied");
-                                // this.writeLog("File " + fileName + " copied");
-                                _this.countFileCopied++;
                                 _this.deleteRemoteFile(function (data2, error2) {
                                     if (!error2) {
+                                        _this.countFileCopied++;
                                         _this.writeLog("File " + fileName_1 + " copied");
                                         _this.setCurrentState("Remote file " + fileName_1 + " deleted");
                                     }
@@ -72,13 +69,11 @@ var MsiApiServer = /** @class */ (function () {
                                         _this.writeError("Remote file " + fileName_1 + " NOT deleted");
                                         _this.writeError(JSON.stringify(error2));
                                     }
-                                    _this.downloading = false;
                                 }, fileName_1);
                             }
                             else {
                                 _this.writeError("File " + fileName_1 + " NOT copied");
                                 _this.writeError(JSON.stringify(error1));
-                                _this.downloading = false;
                             }
                         }, fileName_1, fileName_1);
                     }
@@ -89,7 +84,6 @@ var MsiApiServer = /** @class */ (function () {
                         if (error) {
                             _this.writeError(JSON.stringify(error));
                         }
-                        _this.downloading = false;
                     }
                 }, fileName_1);
             }
@@ -103,7 +97,6 @@ var MsiApiServer = /** @class */ (function () {
                 if (error) {
                     _this.writeError(JSON.stringify(error));
                 }
-                _this.downloading = false;
             }
         });
         // }
@@ -115,12 +108,17 @@ var MsiApiServer = /** @class */ (function () {
         this.logs = [];
         this.countFileCopied = 0;
         this.started = true;
-        this.downloading = false;
         this.setCurrentState("Loading configuration");
         this.loadConfiguration();
         if (!this.checkConfiguration()) {
             this.started = false;
             this.writeError("Error configuration");
+            this.setCurrentState("Server NOT started");
+        }
+        if (!this.checkDestination()) {
+            this.started = false;
+            this.writeError("Destination could not be reached");
+            this.setCurrentState("Server NOT started");
         }
         if (this.started) {
             this.setCurrentState("Checking server");
@@ -143,7 +141,6 @@ var MsiApiServer = /** @class */ (function () {
     MsiApiServer.prototype.stop = function () {
         this.stopDate = new Date();
         this.started = false;
-        this.downloading = false;
         if (this.deamon) {
             clearInterval(this.deamon);
             this.deamon = null;
@@ -218,6 +215,10 @@ var MsiApiServer = /** @class */ (function () {
         this.rest.call(function (data, error) {
             callback(data, error);
         }, "GET", this.configuration.baseUrl);
+    };
+    MsiApiServer.prototype.checkDestination = function () {
+        var destinationDirectory = this.configuration.destinationDirectory;
+        return this.fs.existsSync(destinationDirectory);
     };
     MsiApiServer.prototype.write = function (text) {
         var date = new Date().toLocaleDateString() + " " + new Date().toLocaleTimeString();

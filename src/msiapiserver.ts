@@ -13,7 +13,6 @@ export class MsiApiServer {
     private apiDeleteFile = "deleteFile";
     private apiDownlaodFiles = "downloadFile";
     private token = "";
-    private downloading = false;
 
     private currentState = "";
 
@@ -69,7 +68,6 @@ export class MsiApiServer {
 
     private download() {
         // if (!this.downloading) {
-        this.downloading = true;
         this.setCurrentState("Listing files...");
         this.listFiles(
             (data: any, error: any) => {
@@ -85,23 +83,20 @@ export class MsiApiServer {
                                     (data1: any, error1: any) => {
                                         if (!error1) {
                                             this.setCurrentState(fileName + " copied");
-                                            // this.writeLog("File " + fileName + " copied");
-                                            this.countFileCopied++;
                                             this.deleteRemoteFile(
                                                 (data2: any, error2: any) => {
                                                     if (!error2) {
+                                                        this.countFileCopied++;
                                                         this.writeLog("File " + fileName + " copied");
                                                         this.setCurrentState("Remote file " + fileName + " deleted");
                                                     } else {
                                                         this.writeError("Remote file " + fileName + " NOT deleted");
                                                         this.writeError(JSON.stringify(error2));
                                                     }
-                                                    this.downloading = false;
                                                 }, fileName)
                                         } else {
                                             this.writeError("File " + fileName + " NOT copied");
                                             this.writeError(JSON.stringify(error1));
-                                            this.downloading = false;
                                         }
                                     }, fileName, fileName);
                             } else {
@@ -111,7 +106,6 @@ export class MsiApiServer {
                                 if (error) {
                                     this.writeError(JSON.stringify(error));
                                 }
-                                this.downloading = false;
                             }
                         }, fileName);
                 } else {
@@ -124,7 +118,6 @@ export class MsiApiServer {
                     if (error) {
                         this.writeError(JSON.stringify(error));
                     }
-                    this.downloading = false;
                 }
             })
         // }
@@ -136,12 +129,17 @@ export class MsiApiServer {
         this.logs = [];
         this.countFileCopied = 0;
         this.started = true;
-        this.downloading = false;
         this.setCurrentState("Loading configuration");
         this.loadConfiguration();
         if (!this.checkConfiguration()) {
             this.started = false;
             this.writeError("Error configuration");
+            this.setCurrentState("Server NOT started");
+        }
+        if (!this.checkDestination()) {
+            this.started = false;
+            this.writeError("Destination could not be reached");
+            this.setCurrentState("Server NOT started");
         }
         if (this.started) {
             this.setCurrentState("Checking server");
@@ -166,7 +164,6 @@ export class MsiApiServer {
     stop() {
         this.stopDate = new Date();
         this.started = false;
-        this.downloading = false;
         if (this.deamon) {
             clearInterval(this.deamon);
             this.deamon = null;
@@ -174,15 +171,15 @@ export class MsiApiServer {
         this.setCurrentState("Server stopped");
     }
 
-    getStartDate(){
+    getStartDate() {
         return this.toolbox.formatDate(this.startDate);
     }
 
-    getStopDate(){
+    getStopDate() {
         return this.toolbox.formatDate(this.stopDate);
     }
 
-    getServerDate(){
+    getServerDate() {
         return this.started ? this.getStartDate() : this.getStopDate()
     }
 
@@ -233,7 +230,7 @@ export class MsiApiServer {
         return this.currentState;
     }
 
-    checkConfiguration() {
+    private checkConfiguration() {
         let ret = true;
         if (this.configuration) {
             if (!this.configuration.identifier) {
@@ -247,12 +244,17 @@ export class MsiApiServer {
         return ret;
     }
 
-    checkServer(callback: Function) {
+    private checkServer(callback: Function) {
         this.rest.call(
             (data: any, error: any) => {
                 callback(data, error);
             }, "GET", this.configuration.baseUrl
         )
+    }
+
+    private checkDestination() {
+        let destinationDirectory = this.configuration.destinationDirectory;
+        return this.fs.existsSync(destinationDirectory);
     }
 
     private write(text: string) {

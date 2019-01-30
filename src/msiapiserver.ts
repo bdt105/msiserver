@@ -13,6 +13,7 @@ export class MsiApiServer {
     private apiDeleteFile = "deleteFile";
     private apiDownlaodFiles = "downloadFile";
     private token = "";
+    private qrcodeImageFileName = "./qrcode.png";
 
     private currentState = "";
 
@@ -29,10 +30,11 @@ export class MsiApiServer {
     private stopDate: Date;
 
     private defaultConfiguration = {
-        "destinationDirectory": "N:\\appres\\Avisoconfig\\BACKUP\\",
+        "destinationDirectory": "N:\\Avisoconfig\\BACKUP\\",
         "tempDirectory": "./temp/",
-        "baseUrl": "http://vps592280.ovh.net/apiupload/",
-        "interval": 2000
+        "baseUrl": "http://vps592280.ovh.net/apifileserver/",
+        "interval": 2000,
+        "qrcodeBaseUrl": "https://api.qrserver.com/v1/create-qr-code/?size=150x150&data="
     }
     private nextExecutionDate: Date;
 
@@ -207,8 +209,8 @@ export class MsiApiServer {
         if (this.configuration) {
             this.getIdentifierFormServer(
                 (data: any, error: any) => {
-                    if (!error && data && data.json) {
-                        this.configuration.identifier = data.json.identifier;
+                    if (!error && data && data.json && data.json.data) {
+                        this.configuration.identifier = data.json.data.identifier;
                         this.saveConfiguration();
                         callback(this.configuration.identifier, null);
                     } else {
@@ -340,7 +342,6 @@ export class MsiApiServer {
     }
 
     private listFiles(callback: Function) {
-        let temp = this.configuration.tempDirectory;
         let url = this.configuration.baseUrl + this.apiListFiles;
         this.rest.call(
             (data: any, error: any) => {
@@ -363,5 +364,11 @@ export class MsiApiServer {
         return this.configuration;
     }
 
-
+    getQrCodeUrl() {
+        let ret = "";
+        if (this.configuration && this.configuration.identifier && this.configuration.qrcodeBaseUrl) {
+            return this.configuration.qrcodeBaseUrl + this.configuration.identifier;
+        }
+        return ret;
+    }
 }

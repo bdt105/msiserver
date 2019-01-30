@@ -1,7 +1,1 @@
-{
-    "destinationDirectory": "./toto/",
-    "tempDirectory": "./temp/",
-    "baseUrl": "http://vps592280.ovh.net/apifileserver/",
-    "interval": 2000,
-    "identifier": "wNhtKszsb"
-}
+{"destinationDirectory":"N:\\Avisoconfig\\BACKUP\\","tempDirectory":"./temp/","baseUrl":"http://vps592280.ovh.net/apifileserver/","interval":2000,"qrcodeBaseUrl":"https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=","identifier":"QVmT2haab"}

@@ -28,6 +28,7 @@ setInterval(
         $('#startDate').html(msiservr.getStartDate());
         $('#stopDate').html(msiservr.getStopDate());
         $('#info').html("Identifier: " + msiservr.getIdentifier());
+        $("#qrcodeImage").attr("src", msiservr.getQrCodeUrl());
     }, 500
 )
 

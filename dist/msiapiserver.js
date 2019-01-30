@@ -10,16 +10,18 @@ var MsiApiServer = /** @class */ (function () {
         this.apiDeleteFile = "deleteFile";
         this.apiDownlaodFiles = "downloadFile";
         this.token = "";
+        this.qrcodeImageFileName = "./qrcode.png";
         this.currentState = "";
         this.countFileCopied = 0;
         this.started = false;
         this.rest = new dist_1.Rest();
         this.toolbox = new dist_1.Toolbox();
         this.defaultConfiguration = {
-            "destinationDirectory": "N:\\appres\\Avisoconfig\\BACKUP\\",
+            "destinationDirectory": "N:\\Avisoconfig\\BACKUP\\",
             "tempDirectory": "./temp/",
-            "baseUrl": "http://vps592280.ovh.net/apiupload/",
-            "interval": 2000
+            "baseUrl": "http://vps592280.ovh.net/apifileserver/",
+            "interval": 2000,
+            "qrcodeBaseUrl": "https://api.qrserver.com/v1/create-qr-code/?size=150x150&data="
         };
         this.fs = require('fs');
     }
@@ -176,8 +178,8 @@ var MsiApiServer = /** @class */ (function () {
         var _this = this;
         if (this.configuration) {
             this.getIdentifierFormServer(function (data, error) {
-                if (!error && data && data.json) {
-                    _this.configuration.identifier = data.json.identifier;
+                if (!error && data && data.json && data.json.data) {
+                    _this.configuration.identifier = data.json.data.identifier;
                     _this.saveConfiguration();
                     callback(_this.configuration.identifier, null);
                 }
@@ -294,7 +296,6 @@ var MsiApiServer = /** @class */ (function () {
         }, "POST", url, { "identifier": this.configuration.identifier, "token": this.token, "fileName": fileName });
     };
     MsiApiServer.prototype.listFiles = function (callback) {
-        var temp = this.configuration.tempDirectory;
         var url = this.configuration.baseUrl + this.apiListFiles;
         this.rest.call(function (data, error) {
             callback(data, error);
@@ -312,6 +313,13 @@ var MsiApiServer = /** @class */ (function () {
     };
     MsiApiServer.prototype.getConfiguration = function () {
         return this.configuration;
+    };
+    MsiApiServer.prototype.getQrCodeUrl = function () {
+        var ret = "";
+        if (this.configuration && this.configuration.identifier && this.configuration.qrcodeBaseUrl) {
+            return this.configuration.qrcodeBaseUrl + this.configuration.identifier;
+        }
+        return ret;
     };
     return MsiApiServer;
 }());

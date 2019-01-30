@@ -288,7 +288,7 @@ var MsiApiServer = /** @class */ (function () {
                 if (_this.fs.existsSync(temp + fileName)) {
                     _this.fs.unlinkSync(temp + fileName);
                 }
-                _this.fs.writeFileSync(temp + fileName, data.json, "utf8");
+                _this.fs.writeFileSync(temp + fileName, data.raw);
             }
             callback(data, error);
         }, "POST", url, { "identifier": this.configuration.identifier, "token": this.token, "fileName": fileName });

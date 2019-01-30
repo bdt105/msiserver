@@ -1,1 +1,7 @@
-{"destinationDirectory":"./toto/","tempDirectory":"./temp/","baseUrl":"http://vps592280.ovh.net/apiupload/","interval":2000,"identifier":"ufGtDjIqv"}
+{
+    "destinationDirectory": "./toto/",
+    "tempDirectory": "./temp/",
+    "baseUrl": "http://vps592280.ovh.net/apifileserver/",
+    "interval": 2000,
+    "identifier": "wNhtKszsb"
+}

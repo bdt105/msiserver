@@ -305,6 +305,7 @@ export class MsiApiServer {
         )
 
     }
+
     loadConfiguration() {
         if (this.fs.existsSync(this.configurationFileName)) {
             var conf = this.fs.readFileSync(this.configurationFileName);
@@ -331,7 +332,7 @@ export class MsiApiServer {
                     if (this.fs.existsSync(temp + fileName)) {
                         this.fs.unlinkSync(temp + fileName);
                     }
-                    this.fs.writeFileSync(temp + fileName, data.json, "utf8");
+                    this.fs.writeFileSync(temp + fileName, data.raw);
                 }
                 callback(data, error);
             }, "POST", url, { "identifier": this.configuration.identifier, "token": this.token, "fileName": fileName }

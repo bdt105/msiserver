@@ -13,7 +13,6 @@ export class MsiApiServer {
     private apiDeleteFile = "deleteFile";
     private apiDownlaodFiles = "downloadFile";
     private token = "";
-    private qrcodeImageFileName = "./qrcode.png";
 
     private currentState = "";
 

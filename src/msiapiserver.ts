@@ -1,4 +1,5 @@
 import { Rest, Toolbox } from 'bdt105toolbox/dist';
+import { Connexion, JwtConfiguration } from 'bdt105connexion/dist';
 
 export class MsiApiServer {
     private configuration: any;
@@ -7,12 +8,13 @@ export class MsiApiServer {
     private configurationFileName = "configuration.json";
     private lastError: any;
     private defaultLogSize = 30;
-    private "jwtSecret": "122344";
+    private jwtSecret = "122344";
     private apiIdentifier = "identifier";
     private apiListFiles = "listFiles";
     private apiDeleteFile = "deleteFile";
     private apiDownlaodFiles = "downloadFile";
     private token = "";
+    private connexion: Connexion;
 
     private currentState = "";
 
@@ -39,10 +41,19 @@ export class MsiApiServer {
 
     constructor() {
         this.fs = require('fs');
+        let jwtConf = new JwtConfiguration(this.jwtSecret, null, null, null);
+        this.connexion = new Connexion(null, jwtConf);
     }
 
     getLastError() {
         return this.lastError;
+    }
+
+    private getToken() {
+        if (!this.getToken) {
+            this.token = this.connexion.createJwt({ "application": "msiserver" }, { "expiresIn": "10y" });
+        }
+        return this.token;
     }
 
     private startDownload() {
@@ -68,7 +79,6 @@ export class MsiApiServer {
     }
 
     private download() {
-        // if (!this.downloading) {
         this.setCurrentState("Listing files...");
         this.listFiles(
             (data: any, error: any) => {
@@ -121,7 +131,6 @@ export class MsiApiServer {
                     }
                 }
             })
-        // }
     }
 
     start() {
@@ -192,11 +201,12 @@ export class MsiApiServer {
         let url = this.configuration.baseUrl + this.apiIdentifier;
         this.rest.call(
             (data: any, error: any) => {
-                if (!error) {
-                    this.configuration.identifier = data.json.identifier;
+                if (!error && data && data.json && data.json.data) {
+                    this.configuration.identifier = data.json.data.identifier;
+                    this.token = this.connexion.createJwt({ "identifier": this.configuration.identifier }, { "expiresIn": "10y" });
                 }
                 callback(data, error);
-            }, "POST", url, { "token": this.token }
+            }, "POST", url, { "token": this.getToken() }
         )
     }
 
@@ -208,8 +218,7 @@ export class MsiApiServer {
         if (this.configuration) {
             this.getIdentifierFormServer(
                 (data: any, error: any) => {
-                    if (!error && data && data.json && data.json.data) {
-                        this.configuration.identifier = data.json.data.identifier;
+                    if (!error) {
                         this.saveConfiguration();
                         callback(this.configuration.identifier, null);
                     } else {
@@ -336,7 +345,7 @@ export class MsiApiServer {
                     this.fs.writeFileSync(temp + fileName, data.raw);
                 }
                 callback(data, error);
-            }, "POST", url, { "identifier": this.configuration.identifier, "token": this.token, "fileName": fileName }
+            }, "POST", url, { "identifier": this.configuration.identifier, "token": this.getToken(), "fileName": fileName }
         )
     }
 
@@ -345,7 +354,7 @@ export class MsiApiServer {
         this.rest.call(
             (data: any, error: any) => {
                 callback(data, error);
-            }, "POST", url, { "token": this.token, "identifier": this.configuration.identifier }
+            }, "POST", url, { "token": this.getToken(), "identifier": this.configuration.identifier }
         )
     }
 

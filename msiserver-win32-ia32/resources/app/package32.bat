@@ -1,0 +1,1 @@
+electron-packager . msiserver --platform=win32 --arch=ia32 --overwrite=true

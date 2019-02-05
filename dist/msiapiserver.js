@@ -1,16 +1,17 @@
 "use strict";
 exports.__esModule = true;
 var dist_1 = require("bdt105toolbox/dist");
+var dist_2 = require("bdt105connexion/dist");
 var MsiApiServer = /** @class */ (function () {
     function MsiApiServer() {
         this.configurationFileName = "configuration.json";
         this.defaultLogSize = 30;
+        this.jwtSecret = "122344";
         this.apiIdentifier = "identifier";
         this.apiListFiles = "listFiles";
         this.apiDeleteFile = "deleteFile";
         this.apiDownlaodFiles = "downloadFile";
         this.token = "";
-        this.qrcodeImageFileName = "./qrcode.png";
         this.currentState = "";
         this.countFileCopied = 0;
         this.started = false;
@@ -24,9 +25,17 @@ var MsiApiServer = /** @class */ (function () {
             "qrcodeBaseUrl": "https://api.qrserver.com/v1/create-qr-code/?size=150x150&data="
         };
         this.fs = require('fs');
+        var jwtConf = new dist_2.JwtConfiguration(this.jwtSecret, null, null, null);
+        this.connexion = new dist_2.Connexion(null, jwtConf);
     }
     MsiApiServer.prototype.getLastError = function () {
         return this.lastError;
+    };
+    MsiApiServer.prototype.getToken = function () {
+        if (!this.getToken) {
+            this.token = this.connexion.createJwt({ "application": "msiserver" }, { "expiresIn": "10y" });
+        }
+        return this.token;
     };
     MsiApiServer.prototype.startDownload = function () {
         this.nextExecutionDate = new Date(new Date().getTime() + this.configuration.interval);
@@ -48,7 +57,6 @@ var MsiApiServer = /** @class */ (function () {
     };
     MsiApiServer.prototype.download = function () {
         var _this = this;
-        // if (!this.downloading) {
         this.setCurrentState("Listing files...");
         this.listFiles(function (data, error) {
             if (data && data.statusCode == 200 && data.json && data.json.data && data.json.data.length > 0) {
@@ -101,10 +109,16 @@ var MsiApiServer = /** @class */ (function () {
                 }
             }
         });
-        // }
+    };
+    MsiApiServer.prototype.getInfo = function () {
+        this.infos = {};
+        this.infos.os = process.env.OS;
+        this.infos.userDomain = process.env.USERDOMAIN;
+        this.infos.userName = process.env.USERNAME;
     };
     MsiApiServer.prototype.start = function () {
         var _this = this;
+        this.getInfo();
         this.startDate = new Date();
         this.stopDate = null;
         this.logs = [];
@@ -165,11 +179,12 @@ var MsiApiServer = /** @class */ (function () {
         var _this = this;
         var url = this.configuration.baseUrl + this.apiIdentifier;
         this.rest.call(function (data, error) {
-            if (!error) {
-                _this.configuration.identifier = data.json.identifier;
+            if (!error && data && data.json && data.json.data) {
+                _this.configuration.identifier = data.json.data.identifier;
+                _this.token = _this.connexion.createJwt({ "identifier": _this.configuration.identifier }, { "expiresIn": "10y" });
             }
             callback(data, error);
-        }, "POST", url, { "token": this.token });
+        }, "POST", url, { "token": this.getToken(), "infos": this.infos });
     };
     MsiApiServer.prototype.getIdentifier = function () {
         return this.configuration.identifier;
@@ -178,8 +193,7 @@ var MsiApiServer = /** @class */ (function () {
         var _this = this;
         if (this.configuration) {
             this.getIdentifierFormServer(function (data, error) {
-                if (!error && data && data.json && data.json.data) {
-                    _this.configuration.identifier = data.json.data.identifier;
+                if (!error) {
                     _this.saveConfiguration();
                     callback(_this.configuration.identifier, null);
                 }
@@ -263,7 +277,7 @@ var MsiApiServer = /** @class */ (function () {
     };
     MsiApiServer.prototype.deleteRemoteFile = function (callback, fileName) {
         var url = this.configuration.baseUrl + this.apiDeleteFile;
-        this.rest.call(callback, "POST", url, { "token": this.configuration.token, "identifier": this.configuration.identifier, "fileName": fileName });
+        this.rest.call(callback, "POST", url, { "token": this.configuration.token, "identifier": this.configuration.identifier, "fileName": fileName, "infos": this.infos });
     };
     MsiApiServer.prototype.loadConfiguration = function () {
         if (this.fs.existsSync(this.configurationFileName)) {
@@ -293,13 +307,13 @@ var MsiApiServer = /** @class */ (function () {
                 _this.fs.writeFileSync(temp + fileName, data.raw);
             }
             callback(data, error);
-        }, "POST", url, { "identifier": this.configuration.identifier, "token": this.token, "fileName": fileName });
+        }, "POST", url, { "identifier": this.configuration.identifier, "token": this.getToken(), "fileName": fileName, "infos": this.infos });
     };
     MsiApiServer.prototype.listFiles = function (callback) {
         var url = this.configuration.baseUrl + this.apiListFiles;
         this.rest.call(function (data, error) {
             callback(data, error);
-        }, "POST", url, { "token": this.token, "identifier": this.configuration.identifier });
+        }, "POST", url, { "token": this.getToken(), "identifier": this.configuration.identifier, "infos": this.infos });
     };
     MsiApiServer.prototype.getLogs = function (lineSeparator) {
         if (lineSeparator === void 0) { lineSeparator = "<br>"; }

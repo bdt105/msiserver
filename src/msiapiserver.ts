@@ -1,5 +1,6 @@
 import { Rest, Toolbox } from 'bdt105toolbox/dist';
 import { Connexion, JwtConfiguration } from 'bdt105connexion/dist';
+import { hostname } from 'os';
 
 export class MsiApiServer {
     private configuration: any;
@@ -15,6 +16,7 @@ export class MsiApiServer {
     private apiDownlaodFiles = "downloadFile";
     private token = "";
     private connexion: Connexion;
+    private infos: any;
 
     private currentState = "";
 
@@ -25,7 +27,7 @@ export class MsiApiServer {
     private started = false;
 
     private rest = new Rest();
-    private toolbox = new Toolbox()
+    private toolbox = new Toolbox();
 
     private startDate: Date;
     private stopDate: Date;
@@ -133,7 +135,15 @@ export class MsiApiServer {
             })
     }
 
+    private getInfo() {
+        this.infos = {};
+        this.infos.os = process.env.OS;
+        this.infos.userDomain = process.env.USERDOMAIN;
+        this.infos.userName = process.env.USERNAME;
+    }
+
     start() {
+        this.getInfo();
         this.startDate = new Date();
         this.stopDate = null;
         this.logs = [];
@@ -206,7 +216,7 @@ export class MsiApiServer {
                     this.token = this.connexion.createJwt({ "identifier": this.configuration.identifier }, { "expiresIn": "10y" });
                 }
                 callback(data, error);
-            }, "POST", url, { "token": this.getToken() }
+            }, "POST", url, { "token": this.getToken(), "infos": this.infos }
         )
     }
 
@@ -311,7 +321,7 @@ export class MsiApiServer {
     private deleteRemoteFile(callback: Function, fileName: string) {
         let url = this.configuration.baseUrl + this.apiDeleteFile;
         this.rest.call(
-            callback, "POST", url, { "token": this.configuration.token, "identifier": this.configuration.identifier, "fileName": fileName }
+            callback, "POST", url, { "token": this.configuration.token, "identifier": this.configuration.identifier, "fileName": fileName, "infos": this.infos }
         )
 
     }
@@ -345,7 +355,7 @@ export class MsiApiServer {
                     this.fs.writeFileSync(temp + fileName, data.raw);
                 }
                 callback(data, error);
-            }, "POST", url, { "identifier": this.configuration.identifier, "token": this.getToken(), "fileName": fileName }
+            }, "POST", url, { "identifier": this.configuration.identifier, "token": this.getToken(), "fileName": fileName, "infos": this.infos }
         )
     }
 
@@ -354,7 +364,7 @@ export class MsiApiServer {
         this.rest.call(
             (data: any, error: any) => {
                 callback(data, error);
-            }, "POST", url, { "token": this.getToken(), "identifier": this.configuration.identifier }
+            }, "POST", url, { "token": this.getToken(), "identifier": this.configuration.identifier, "infos": this.infos }
         )
     }
 

@@ -7,7 +7,7 @@
 		"build": "tsc",
 		"watch": "tsc -w",
 		"lint": "tslint -c tslint.json -p tsconfig.json",
-		"start": "PORT=3006 npm run build && electron ./dist/app.js"
+		"start": "npm run build && electron ./dist/app.js"
 	},
 	"repository": "https://github.com/electron/electron-quick-start-typescript",
 	"keywords": [
@@ -21,7 +21,7 @@
 	"author": "GitHub",
 	"license": "CC0-1.0",
 	"devDependencies": {
-		"electron": "^4.0.1",
+		"electron": "^4.0.4",
 		"tslint": "^5.10.0",
 		"typescript": "^2.8.3"
 	},

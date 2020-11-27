@@ -1,6 +1,5 @@
 import { Rest, Toolbox } from 'bdt105toolbox/dist';
 import { Connexion, JwtConfiguration } from 'bdt105connexion/dist';
-import { hostname } from 'os';
 
 export class MsiApiServer {
     private configuration: any;
@@ -316,7 +315,6 @@ export class MsiApiServer {
             });
         return ret;
     }
-
 
     private deleteRemoteFile(callback: Function, fileName: string) {
         let url = this.configuration.baseUrl + this.apiDeleteFile;

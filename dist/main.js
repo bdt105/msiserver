@@ -95,7 +95,12 @@ var Main = /** @class */ (function () {
         }
     };
     Main.onReady = function () {
-        Main.mainWindow = new Main.BrowserWindow({ width: 800, height: 600, icon: path.join(__dirname, "../msiserver.ico") });
+        Main.mainWindow = new Main.BrowserWindow({
+            webPreferences: {
+                nodeIntegration: true,
+                contextIsolation: false
+            }, width: 800, height: 600, icon: path.join(__dirname, "../msiserver.ico")
+        });
         Main.mainWindow.loadFile(path.join(__dirname, "../index.html"));
         // Open the DevTools.
         // "dev":{"showdevtool":true}

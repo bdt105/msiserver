@@ -32,10 +32,7 @@ var MsiApiServer = /** @class */ (function () {
         return this.lastError;
     };
     MsiApiServer.prototype.getToken = function () {
-        if (!this.getToken) {
-            this.token = this.connexion.createJwt({ "application": "msiserver" }, { "expiresIn": "10y" });
-        }
-        return this.token;
+        return this.configuration.token;
     };
     MsiApiServer.prototype.startDownload = function () {
         this.nextExecutionDate = new Date(new Date().getTime() + this.configuration.interval);
@@ -59,8 +56,8 @@ var MsiApiServer = /** @class */ (function () {
         var _this = this;
         this.setCurrentState("Listing files...");
         this.listFiles(function (data, error) {
-            if (data && data.statusCode == 200 && data.json && data.json.data && data.json.data.length > 0) {
-                var fileName_1 = data.json.data[0];
+            if (data && data.statusCode == 200 && data.json && data.json && data.json.length > 0) {
+                var fileName_1 = data.json[0];
                 _this.setCurrentState("Downloading " + fileName_1 + "...");
                 _this.downloadFile(function (data, error) {
                     _this.setCurrentState("Downloading " + fileName_1 + " done");
@@ -101,7 +98,7 @@ var MsiApiServer = /** @class */ (function () {
                 if (data && data.statusCode == 404) {
                     _this.writeError("Identifier unknown. generate a new one please");
                 }
-                if (data && data.statusCode == 200 && data.json && data.json.data && data.json.data.length == 0) {
+                if (data && data.statusCode == 200 && data.json && data.json.length == 0) {
                     _this.setCurrentState("Nothing to download");
                 }
                 if (error) {
@@ -179,8 +176,8 @@ var MsiApiServer = /** @class */ (function () {
         var _this = this;
         var url = this.configuration.baseUrl + this.apiIdentifier;
         this.rest.call(function (data, error) {
-            if (!error && data && data.json && data.json.data) {
-                _this.configuration.identifier = data.json.data.identifier;
+            if (!error && data && data.json) {
+                _this.configuration.identifier = data.json.identifier;
                 _this.token = _this.connexion.createJwt({ "identifier": _this.configuration.identifier }, { "expiresIn": "10y" });
             }
             callback(data, error);
